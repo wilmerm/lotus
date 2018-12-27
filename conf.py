@@ -47,14 +47,12 @@ class Configurations(object):
         Agrega una configuración.
         """
         c = Conf(key, name, value, description)
-        print(c)
         setattr(self, key, c)
 
     def Get(self, name):
         """
         Obtiene una configuración.
         """
-        print(self.__dict__)
         return getattr(self, name)
 
 

@@ -271,6 +271,38 @@ class Fecha(object):
     Clase para el manejo de fechas.
     """
 
+    def StrToDate(self, text):
+        """
+        Obtiene un objeto datetime.date a partir de una 
+        cadenad de texto.
+        """
+        text = text.replace("/", "-")
+        text = text.split(" ")[0]
+        y, m, d = text.split("-")
+        return datetime.date(int(y), int(m), int(d))
+    
+    def StrToDatetime(self, text):
+        """
+        Obtiene un objeto datetime.datetime a partir de 
+        una cadena de texto.
+        """
+        text = text.replace("/", "-")
+        try:
+            text1, text2 = text.split(" ")
+        except ValueError:
+            text1, text2 = text, "00:00:00.000"
+        y, m, d = text1.split("-")
+        hh, mm, ss = text2.split(":")[0:3]
+        return datetime.datetime(int(y), int(m), int(d), int(hh), int(mm), int(float(ss)))
+
+    def StrToTuple(self, text):
+        """
+        Convierte el texto que representa una fecha, en una 
+        tupla (year, month, day, hour, minutes, seconds)
+        """
+        dt = self.StrToDate(text)
+        return dt.timetuple()
+
     def GetTiempo(self, fecha1, fecha2=datetime.date.today(), intexto=False):
         """
         Obtiene la diferencia (tiempo) entre dos fechas.

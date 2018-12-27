@@ -9,8 +9,8 @@ from var import *
 import img
 from fuente.translation import gettext as _
 from models import *
-from generic_ctrl import *
-from panel_clientes import *
+from ctrls import *
+
 from panel_prestamos import *
 
 
@@ -28,7 +28,7 @@ class Panels(wx.Panel):
     def __init__(self, *args, **kwargs):
         wx.Panel.__init__(self, *args, **kwargs)
         # Declaración de paneles.
-        self.panel1 = ClientePanel(self, name="cliente")
+        self.panel1 = PrestamoPanel(self, name="cliente")
         self.panel2 = PrestamoPanel(self, name="prestamo")
         # Lista de paneles ya declarados.
         self.paneles = [
@@ -64,6 +64,7 @@ class Panels(wx.Panel):
         self.HideAllPanels()
         panel = self.FindWindowByName(name)
         panel.Show()
+        self.Layout()
 
         
 
@@ -90,7 +91,8 @@ class Frame(wx.Frame):
         self.__do_layout()
 
     def __set_properties(self):
-        pass
+        #font = wx.Font(16, family=wx.FONTFAMILY_DEFAULT, style=wx.FONTSTYLE_NORMAL, weight=wx.FONTWEIGHT_LIGHT)
+        self.SetMinSize((1024, 768))
     
     def __do_layout(self):
         s1 = wx.BoxSizer(wx.VERTICAL)

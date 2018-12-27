@@ -1,13 +1,10 @@
+
+
+import datetime
 from .translation import gettext as _
-# Locales
 from .paises import *
 
 
-try:
-    from django.conf import settings
-    STATIC_URL = settings.STATIC_URL
-except BaseException:
-    STATIC_URL = ""
 
 
 
@@ -126,6 +123,10 @@ PERIODO_CHOICES = (
 )
 
 
+MINDATE = datetime.date(datetime.MINYEAR, 1, 1)
+MAXDATE = datetime.date(datetime.MAXYEAR, 12, 31)
+MINDATETIME = datetime.datetime(datetime.MINYEAR, 1, 1, 0, 0, 0)
+MAXDATETIME = datetime.datetime(datetime.MAXYEAR, 12, 31, 23, 59, 59)
 
 
 # INFORMÁTICA ------------------------------------------------------
@@ -158,9 +159,19 @@ TIPO_DE_DATOS_CHOICES = (
 
 
 
+# REGISTROS:
+
+NEW = "NEW"
+EDIT = "EDIT"
+DELETE = "DELETE"
+
+
+
+
 # IMÁGENES. ----------------------------------------------------------
 
-IMG_DINERO = STATIC_URL + "img/dinero.svg"
+
+
 
 
 

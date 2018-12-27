@@ -25,13 +25,16 @@ class PanelList(wx.Panel):
     """
     def __init__(self, *args, **kwargs):
         wx.Panel.__init__(self, *args, **kwargs)
-        # Declaración de los controles.
+        # Declaraciósn de los controles.
         self.listctrl_1 = wx.ListCtrl(self, -1, style=wx.LC_REPORT|wx.LC_HRULES|wx.LC_VRULES, name="listctrl_1")
+        # Miebros.
+        self.selection = None # Indica el último id seleccionado en el listctrl
         # Llamado a las funciones de inicialización.
         self.__set_properties()
         self.__do_layout()
         # Eventos.
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnListItemSelected, self.listctrl_1)
+        self.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.OnListItemActivated, self.listctrl_1)
 
     def __set_properties(self):
         pass
@@ -44,9 +47,22 @@ class PanelList(wx.Panel):
         self.SetSizer(s1)
         self.Layout()
 
-    def OnListItemSelected(self, event):
-        print("holamundo")
+    def OnListItemActivated(self, event):
+        lc = self.listctrl_1
+        i = lc.GetFirstSelected()
+        self.selection = lc.GetItemText(i)
+        if isinstance(self.GetParent(), wx.Dialog):
+            self.GetParent().EndModal(wx.ID_OK)
         event.Skip()
+
+    def OnListItemSelected(self, event):
+        lc = self.listctrl_1
+        i = lc.GetFirstSelected()
+        self.selection = lc.GetItemText(i)
+        event.Skip()
+        
+    def GetSelection(self):
+        return self.selection
 
     def SetItems(self, queryset):
         """
@@ -114,42 +130,97 @@ class PanelDetail(wx.Panel):
 
 
 
-
-
 class PanelForm(wx.Panel):
     """
     Un wxPanel que tiene los metodos predefinidos para 
     la manipulación del modelo Cliente, en lo que 
     conlleva la creación, edicción y eliminación.
     """
-    def __init__(self, parent, id=-1, model=None, name="PanelForm"):
+    def __init__(self, parent, id=-1, model=None, mode=NEW, name="PanelForm"):
         wx.Panel.__init__(self, parent=parent, id=id, name=name)
         self.model = model
+        self.mode = mode
+        self.id = id
+
+    def Ok(self):
+        """
+        Operación de inicialización 2, una vez que ya se ha concluido
+        con el __init__ para el proceso de creación del Panel.
+
+        Este método debe llamarse en la ventanda que hereda de esta.
+        """
+        # El miembro 'modelid' de este control es obligatorio.
+        if not "modelid" in self.__dict__:
+            self.modelid = int(self.GetId())
+
+        if self.mode == NEW:
+            # Si es un nuevo registro, establecemos un modelo sin datos
+            # y establecemos el id del panel al siguiente numero de registro para asignar.
+            self.object = self.model()
+            self.modelid = int(self.object.GetNextId())
+        elif self.mode == EDIT:
+            # Si es una edicción, traemos el modelo correspondiente.
+            self.object = self.model(self.modelid)
+
+        # Si por casualidad tenemos el campo id mostrado al usuario en un ctrl, entonces 
+        # establemos su valor automáticamente, de todos modos el valor self.id será 
+        # establecido.
+        try:
+            if isinstance(self.id, wx.Window):
+                self.id.SetValue(str(self.modelid))
+        except AttributeError:
+            self.id = self.modelid
 
         # Declaramos el parametro 'fields' con los nombres de los 
         # controles que manipulan cada field en el modelo.
+        # y como valores el tipo de dato y si es requerida, en un listado.
+        # Ejemplo: 
+        #    self.fields = {
+        #        'id': ['INT', True],
+        #        'nombres': ['STR', False],
+        #        ...
+        #    }
         # Si no se indica, la clase PanelForm lo tomará de las 
         # fields que dice el modelo.
         if not "fields" in self.__dict__:
-            self.fields = self.model.GetFieldsNames()
+            self.fields = {}
+            fields = self.model().GetFields()
+            for t in fields:
+                name, field = t
+                self.fields[field.name] = [field.type, field.required]
+        # El miembro exclude es una lista de string con los nombres 
+        # de las fields que se desean excluir de las edición por parte
+        # del usuario.
+        if not "exclude" in self.__dict__:
+            self.exclude = []
+        # Las fields excluidas le ponemos el valor required en False.
+        for name in self.exclude:
+            try:
+                self.fields[name] = [self.fields[name][0], False]
+            except KeyError:
+                name = "{}_id".format(name)
+                self.fields[name] = [self.fields[name][0], False]
+
 
     def Save(self):
         """
         Guarda los datos del modelo en la base de datos.
         """
         # Verificamos si es una creación o edición,
-        # comprabando el id del panel es mayor a 0
-        if self.GetId() > 0:
-            # Edicción.
-            return self.Edit()
-        else:
-            return self.Create()
+        if self.mode == NEW:
+            self.Create()
+        elif self.mode == EDIT:
+            self.Edit()
         
-
     def Create(self):
         values = self.GetValues()
+        print(values)
+        if values == None:
+            return 
         obj = self.model()
         for name in values:
+            if name == "id":
+                continue
             value = values[name]
             obj.SetFieldValue(name, value)
         obj.Save()
@@ -157,7 +228,6 @@ class PanelForm(wx.Panel):
     def Edit(self):
         pass
         
-
     def GetValues(self):
         """
         Obtiene un diccionario con los diferentes valores de los 
@@ -166,8 +236,31 @@ class PanelForm(wx.Panel):
         """
         dic = {}
         for name in self.fields:
-            ctrl = getattr(self, name)
-            value = ctrl.GetValue()
+            pytype = self.fields[name][0]
+            required = self.fields[name][1]
+            try:
+                ctrl = getattr(self, name)
+            except AttributeError:
+                # Las fields que son ForeignKey, tienen el sufijo '_id' al final
+                # del nombre de la field: cliente_id, cuenta_id, user_id, ...
+                if name[-3:] == "_id":
+                    name = name[0:-3]
+                    ctrl = getattr(self, name)
+
+            if isinstance(ctrl, wx.Window):
+                value = ctrl.GetValue()
+    
+            else:
+                value = ctrl
+
+            if (required == True) and (value in ("", None)):
+                wx.MessageBox(_("El campo '{}' es requerido.".format(name)))
+                try:
+                    ctrl.SetFocus()
+                except AttributeError:
+                    pass 
+                return None
+
             dic[name] = value
         return dic
 
@@ -175,25 +268,62 @@ class PanelForm(wx.Panel):
 
 
 class ModelCtrl(wx.Button):
-
+    """
+    Un control para la manipulación de modelos.
+    Este es un wxButton que al hacer click abre un wxDialog
+    para la selección de objeto del tipo modelo indicado.
+    """
     def __init__(self, parent, id=-1, model=None, name="ModelCtrl"):
         wx.Button.__init__(self, parent=parent, id=id, label=model.Meta.verbose_name, name=name)
         
         self.model = model
+        self.object = self.model()
         # Evento.
         self.Bind(wx.EVT_BUTTON, self.OnButton, self)
         
-
     def __str__(self):
         return self.model.name
 
     def OnButton(self, event):
-        print("Aun no implementado.")
+        dlg = wx.Dialog(self, -1, self.model.Meta.verbose_name)
+        dlg.panel1 = PanelList(parent=dlg, id=-1)
+        dlg.SetSize(800, 600)
+        qs = self.object.objects.all()
+        dlg.panel1.SetItems(qs)
+        dlg.ShowModal()
+        selection = dlg.panel1.GetSelection()
+        self.SetObject(selection)
         event.Skip()
 
+    def GetValue(self):
+        """
+        Obtiene el 'id' del modelo de este control.
+        """
+        id = self.object.id
+        print(id, "---", self.model)
+        return id
+
+    def GetObject(self):
+        """
+        Obtiene la instancia del modelo asociado a 
+        este control.
+        """
+        return self.object
+
+    def GetModel(self):
+        """
+        Obtiene la clase Model asociada a este ctrl.
+        """
+        return self.model 
+
+    def SetObject(self, id):
+        """
+        Establece el objeto del modelo asociado según
+        el id del registro indicado.
+        """
+        self.object = self.model(id)
+        self.SetLabel(str(self.object))
     
-
-
 
 
 class ComboBox(wx.ComboBox):
@@ -225,11 +355,15 @@ class ComboBox(wx.ComboBox):
             for item in choices:
                 new.append((item, item))
             self.choices2 = new 
-
         wx.ComboBox.__init__(self, parent=parent, id=id, value=value, choices=choices, style=style, name=name)
 
-
-
+    def GetValue(self, verbose_name=False):
+        """
+        Obtiene el elemento seleccionado
+        """ 
+        if verbose_name:
+            return self.choices2[self.GetSelection()][1]
+        return self.choices2[self.GetSelection()][0]
 
 
 
